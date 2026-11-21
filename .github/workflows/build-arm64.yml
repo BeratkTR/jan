@@ -48,6 +48,8 @@ jobs:
             curl \
             desktop-file-utils \
             file \
+            g++-14 \
+            gcc-14 \
             libatk1.0-dev \
             libayatana-appindicator3-dev \
             libglib2.0-dev \
@@ -67,7 +69,7 @@ jobs:
         if: contains(inputs.engine_variant, 'vulkan')
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvulkan-dev glslang-tools
+          sudo apt-get install -y glslc libvulkan-dev spirv-headers
 
       - name: Configure ccache
         run: echo "CCACHE_DIR=${HOME}/.ccache" >> "$GITHUB_ENV"
@@ -88,6 +90,11 @@ jobs:
           yarn build:extensions
 
       - name: Build llama.cpp Engine (ARM64)
+        env:
+          # Ubuntu 24.04 ships GCC 13 by default, which cannot compile llama.cpp's
+          # ARMv9.2 SME CPU variants (GGML_CPU_ALL_VARIANTS=ON). Match upstream llama.cpp CI.
+          CC: gcc-14
+          CXX: g++-14
         run: |
           ccache -z
           make build-engine
