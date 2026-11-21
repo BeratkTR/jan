@@ -95,6 +95,7 @@ jobs:
           # ARMv9.2 SME CPU variants (GGML_CPU_ALL_VARIANTS=ON). Match upstream llama.cpp CI.
           CC: gcc-14
           CXX: g++-14
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: gcc-14
         run: |
           ccache -z
           make build-engine

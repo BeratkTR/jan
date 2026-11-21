@@ -1152,6 +1152,13 @@ mod engine {
                 println!("cargo:rustc-link-arg=-l{a}");
             }
             println!("cargo:rustc-link-arg=-Wl,--end-group");
+            // On aarch64 Linux, GCC compiles the C++ static archives with
+            // -moutline-atomics (e.g. __aarch64_swp4_acq_rel), whose helpers
+            // live in static libgcc.a rather than libgcc_s.so. rustc links with
+            // -nodefaultlibs, so pull libgcc.a explicitly after the archives.
+            if env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default() == "aarch64" {
+                println!("cargo:rustc-link-arg=-lgcc");
+            }
         } else {
             // ld64 and link.exe re-scan archives until no undefined symbol is
             // left, so they resolve the cycle themselves and reject the group
