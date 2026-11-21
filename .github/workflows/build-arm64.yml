@@ -11,10 +11,17 @@ on:
         options:
           - cpu
           - vulkan
+      release_tag:
+        description: 'Optional GitHub Release tag (default: v<version>-arm64)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   build-arm64:
     runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
     env:
       JAN_ENGINE_VARIANT: ${{ inputs.engine_variant || 'cpu' }}
       CCACHE_MAXSIZE: 2G
@@ -148,3 +155,35 @@ jobs:
           name: jan-linux-arm64-deb
           path: src-tauri/target/release/bundle/deb/*.deb
           if-no-files-found: error
+
+      - name: Publish ARM64 DEB to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8')).version")
+          if [ -n "$RELEASE_TAG_INPUT" ]; then
+            TAG="$RELEASE_TAG_INPUT"
+          elif [ "$JAN_ENGINE_VARIANT" = "cpu" ]; then
+            TAG="v${VERSION}-arm64"
+          else
+            TAG="v${VERSION}-arm64-${JAN_ENGINE_VARIANT}"
+          fi
+
+          DEB_FILE=$(ls src-tauri/target/release/bundle/deb/*.deb | head -1)
+          DEB_NAME=$(basename "$DEB_FILE")
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$DEB_FILE" --clobber
+          else
+            gh release create "$TAG" "$DEB_FILE" \
+              --title "Jan v${VERSION} (Linux ARM64 - ${JAN_ENGINE_VARIANT})" \
+              --notes "Automated Linux ARM64 (.deb) build (engine variant: \`${JAN_ENGINE_VARIANT}\`)."
+          fi
+
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${DEB_NAME}"
+          echo "Direct download URL: ${URL}"
+          echo "### ARM64 DEB Release" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tag: \`${TAG}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Direct download: ${URL}" >> "$GITHUB_STEP_SUMMARY"
