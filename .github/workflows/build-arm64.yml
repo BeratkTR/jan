@@ -2,12 +2,23 @@ name: Build Jan ARM64 Linux
 
 on:
   workflow_dispatch:
+    inputs:
+      engine_variant:
+        description: 'llama.cpp engine backend variant'
+        required: false
+        default: 'cpu'
+        type: choice
+        options:
+          - cpu
+          - vulkan
 
 jobs:
   build-arm64:
     runs-on: ubuntu-24.04-arm
     env:
-      JAN_ENGINE_VARIANT: cpu
+      JAN_ENGINE_VARIANT: ${{ inputs.engine_variant || 'cpu' }}
+      CCACHE_MAXSIZE: 2G
+      CCACHE_NOHASHDIR: '1'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -17,8 +28,12 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Configure Yarn
+        run: |
+          corepack enable
+          corepack prepare yarn@4.5.3 --activate
+          yarn --version
+          yarn config set -H enableImmutableInstalls false
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -26,17 +41,98 @@ jobs:
       - name: Install Linux Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libwebkit2gtk-4.1-dev libssl-dev build-essential curl wget file cmake ninja-build pkg-config
+          sudo apt-get install -y \
+            build-essential \
+            ccache \
+            cmake \
+            curl \
+            desktop-file-utils \
+            file \
+            libatk1.0-dev \
+            libayatana-appindicator3-dev \
+            libglib2.0-dev \
+            libgtk-3-dev \
+            libpango1.0-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            ninja-build \
+            patchelf \
+            pkg-config \
+            wget \
+            xdg-utils
 
-      - name: Build Engine and Frontend
+      - name: Install Vulkan Build Dependencies
+        if: contains(inputs.engine_variant, 'vulkan')
         run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan-dev glslang-tools
+
+      - name: Configure ccache
+        run: echo "CCACHE_DIR=${HOME}/.ccache" >> "$GITHUB_ENV"
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-linux-arm64-${{ env.JAN_ENGINE_VARIANT }}-${{ hashFiles('src-tauri/plugins/tauri-plugin-llamacpp/build.rs') }}
+          restore-keys: ccache-linux-arm64-${{ env.JAN_ENGINE_VARIANT }}-
+
+      - name: Install Dependencies and Build Core & Extensions
+        run: |
+          chmod +x src-tauri/build-utils/*
           yarn install
           yarn build:tauri:plugin:api
           yarn build:core
           yarn build:extensions
 
-      - name: Bundle Tauri DEB Only
+      - name: Build llama.cpp Engine (ARM64)
+        run: |
+          ccache -z
+          make build-engine
+
+      - name: Prepare Icons, Resources, and Binaries (uv, bun)
+        run: |
+          yarn build:icon
+          yarn copy:assets:tauri
+          yarn download:bin
+
+      - name: Verify Bundled Resources Before Tauri Build
+        run: |
+          set -euo pipefail
+          for f in \
+            src-tauri/icons/32x32.png \
+            src-tauri/icons/128x128.png \
+            src-tauri/icons/128x128@2x.png \
+            src-tauri/icons-macos/icon.icns \
+            src-tauri/icons-windows/icon.ico \
+            src-tauri/resources/LICENSE \
+            src-tauri/resources/bin/jan-llama-worker \
+            src-tauri/resources/bin/uv-aarch64-unknown-linux-gnu \
+            src-tauri/resources/bin/bun
+          do
+            if [ ! -f "$f" ]; then
+              echo "Missing required bundle asset: $f" >&2
+              exit 1
+            fi
+          done
+          ls -la src-tauri/resources/bin/lib*.so*
+
+      - name: Bundle Tauri DEB (ARM64)
         run: yarn tauri build --bundles deb
+
+      - name: Report ccache statistics
+        if: success() || failure()
+        run: ccache -s || true
+
+      - name: Upload Engine Build Log on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-build-log-linux-arm64
+          path: src-tauri/target/engine-build.log
+          if-no-files-found: ignore
 
       - name: Upload ARM64 DEB Artifact
         uses: actions/upload-artifact@v4

@@ -11,16 +11,17 @@ export COREPACK_HOME=${COREPACK_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/node/corep
 # move cache home to <project root>/.cache
 export XDG_CACHE_HOME=${PWD}/.cache
 
+ARCH="$(uname -m)"
 LINUXDEPLOY_VER="1-alpha-20251107-1"
-LINUXDEPLOY="$XDG_CACHE_HOME/tauri/linuxdeploy-$LINUXDEPLOY_VER-x86_64.AppImage"
-SYMLINK="$XDG_CACHE_HOME/tauri/linuxdeploy-x86_64.AppImage"
+LINUXDEPLOY="$XDG_CACHE_HOME/tauri/linuxdeploy-$LINUXDEPLOY_VER-$ARCH.AppImage"
+SYMLINK="$XDG_CACHE_HOME/tauri/linuxdeploy-$ARCH.AppImage"
 
 mkdir -p "$XDG_CACHE_HOME/tauri"
 
 if [ ! -f "$LINUXDEPLOY" ]; then
-  GLOB_PATTERN="$XDG_CACHE_HOME/tauri/linuxdeploy-*-x86_64.AppImage"
+  GLOB_PATTERN="$XDG_CACHE_HOME/tauri/linuxdeploy-*-$ARCH.AppImage"
   rm -f $GLOB_PATTERN
-  wget "https://github.com/linuxdeploy/linuxdeploy/releases/download/$LINUXDEPLOY_VER/linuxdeploy-x86_64.AppImage" -O "$LINUXDEPLOY"
+  wget "https://github.com/linuxdeploy/linuxdeploy/releases/download/$LINUXDEPLOY_VER/linuxdeploy-$ARCH.AppImage" -O "$LINUXDEPLOY"
   chmod a+x "$LINUXDEPLOY"
 fi
 

@@ -7,8 +7,9 @@ RELEASE_CHANNEL=${RELEASE_CHANNEL:-"stable"}
 # so it needs its own copy of the fallback.
 export APPIMAGE_EXTRACT_AND_RUN=1
 
+ARCH="$(uname -m)"
 mkdir -p ./.cache/build-tools
-wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O "${APPIMAGETOOL}" || { echo "Failed to download appimagetool."; exit 1; }
+wget "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${ARCH}.AppImage" -O "${APPIMAGETOOL}" || { echo "Failed to download appimagetool."; exit 1; }
 chmod +x "${APPIMAGETOOL}"
 
 if [ "${RELEASE_CHANNEL}" != "stable" ]; then
@@ -48,4 +49,4 @@ echo $APP_IMAGE
 rm -f $APP_IMAGE
 
 # repackage appimage with additional resources
-"${APPIMAGETOOL}" $APP_DIR $APP_IMAGE
+ARCH="${ARCH}" "${APPIMAGETOOL}" "$APP_DIR" "$APP_IMAGE"

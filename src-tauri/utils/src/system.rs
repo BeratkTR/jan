@@ -608,6 +608,8 @@ fn find_cuda_paths_linux() -> CudaPaths {
         "/opt/cuda/lib",
         "/usr/lib/x86_64-linux-gnu",
         "/usr/lib/x86_64-linux-gnu/nvidia",
+        "/usr/lib/aarch64-linux-gnu",
+        "/usr/lib/aarch64-linux-gnu/nvidia",
     ];
 
     for path in &common_paths {
